@@ -3,6 +3,7 @@ from app import create_app
 from app.models import db, User
 from werkzeug.security import generate_password_hash
 import json
+from app.utils.util import encode_token
 
 class UserRouteTests(unittest.TestCase):
     
@@ -13,26 +14,37 @@ class UserRouteTests(unittest.TestCase):
         with self.app.app_context():
             db.drop_all()
             db.create_all()
-            self.user = User(username='John Doe', email='jd@email.com', password=generate_password_hash("123"), role='user')
-            db.session.add(self.user)
-            db.session.commit()
-            self.user_id = self.user.id
-            self.user_email = self.user.email
             
-            admin_user = User(
+            self.admin_user = User(
                 username="admin_user",
                 email="admin@email.com",
                 password=generate_password_hash("AdminPass123"),
                 role="admin"
             )
-            regular_user = User(
+            db.session.add(self.admin_user)
+            
+            self.user = User(
+                username='JohnDoe', 
+                email='jd@email.com', 
+                password=generate_password_hash("123"), 
+                role='user')
+            db.session.add(self.user)
+            
+            self.regular_user = User(
                 username="normal_user",
                 email="user@email.com",
                 password=generate_password_hash("UserPass123"),
                 role="user"
             )
-            db.session.add_all([admin_user, regular_user])
+            db.session.add(self.regular_user)
             db.session.commit()
+            
+            self.user_id = self.user.id
+            self.admin_id = self.admin_user.id
+            self.user_email = self.user.email
+            
+            self.user_token = encode_token(self.user_id, role='user')
+            self.admin_token = encode_token(self.admin_id, role='admin')
             
     def test_create_user_success(self):
         payload = {
@@ -114,17 +126,70 @@ class UserRouteTests(unittest.TestCase):
         
     def test_update_user_by_id(self):
         update_payload = {
-            "username": "user_normal",
-            "email": "user_new@email.com",
-            "password": "PassUser123"
+            "username": "UpdatedJohn",
+            "email": "updated@email.com",
+            "password": "UpdatedUser123"
         }
         
-        response = self.client.put('users/1', json=update_payload)
+        response = self.client.put(f'/users/{self.user_id}', json=update_payload)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json['username'], 'user_normal')
-        self.assertEqual(response.json['email'], 'user_new@email.com')
+        self.assertEqual(response.json['username'], 'UpdatedJohn')
+        self.assertEqual(response.json['email'], 'updated@email.com')
         
     def test_delete_user_by_id(self):
         response = self.client.delete(f'/users/{self.user_id}')
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json)
+        
+    def test_change_password_success(self):
+        payload = {
+            "old_password": "123",
+            "new_password": "NewPass456"
+        }
+        
+        response = self.client.put(
+            "/users/change-password",
+            json=payload,
+            headers={"Authorization": f"Bearer {self.user_token}"}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Password changed successfully", response.get_data(as_text=True))
+        
+    def test_change_user_role_success(self):
+        payload = {
+            "role": "admin"
+        }
+        
+        response = self.client.put(
+            f"/users/role/{self.user_id}",
+            json=payload,
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("User role updated to admin", response.get_data(as_text=True))
+        
+    def test_change_user_role_invalid(self):
+        payload = {
+            "role": "superstar"
+        }
+        
+        response = self.client.put(
+            f"/users/role/{self.user_id}",
+            json=payload,
+            headers={"Authorization": f"Bearer {self.admin_token}"}
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid role", response.get_data(as_text=True))
+        
+    def test_get_my_profile(self):
+        response = self.client.get(
+            "/users/me",
+            headers={"Authorizatoin": f"Bearer {self.user_token}"}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['email'], self.user.email)
+        self.assertEqual(response.json['username'], self.user.username)

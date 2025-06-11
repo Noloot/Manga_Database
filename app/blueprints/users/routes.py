@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.models import User, db
 from . import users_bp
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.utils.util import encode_token
+from app.utils.util import encode_token, user_required, admin_required
 
 @users_bp.route("/login", methods=['POST'])
 def login():
@@ -115,6 +115,12 @@ def get_user(id):
     
     return jsonify(user_schema.dump(result)), 200
 
+@users_bp.route('/me', methods=['GET'])
+@user_required
+def get_my_profile():
+    user = db.session.get(User, request.user_id)
+    return jsonify(user_schema.dump(user)), 200
+
 @users_bp.route('/<int:id>', methods=['PUT'])
 def update_user(id):
     user = db.session.get(User, id)
@@ -129,6 +135,40 @@ def update_user(id):
     
     db.session.commit()
     return user_schema.jsonify(user), 200
+
+@users_bp.route('/change-password', methods=['PUT'])
+@user_required
+def change_password():
+    data = request.json
+    old_password = data.get('old_password')
+    new_password = data.get('new_password')
+    
+    user = db.session.get(User, request.user_id)
+    
+    if not check_password_hash(user.password, old_password):
+        return jsonify({'message': 'Old password is incorrect'}), 400
+    
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    
+    return jsonify({'message': 'Password changed successfully'}), 200
+
+@users_bp.route('/role/<int:id>', methods=['PUT'])
+@admin_required
+def change_user_role(id):
+    data = request.json
+    new_role = data.get('role')
+    
+    if new_role not in ['user', 'admin']:
+        return jsonify({'message': 'Invalid role'}), 400
+    
+    user = db.session.get(User, id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    user.role = new_role
+    db.session.commit()
+    return jsonify({'message': f"User role updated to {new_role}"}), 200
 
 @users_bp.route('/<int:id>', methods=['DELETE'])
 def delete_user(id):

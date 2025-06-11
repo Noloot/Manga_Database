@@ -49,7 +49,7 @@ def get_mangas():
     except Exception as e:
         return jsonify({'message': 'Error fetching Mangas', 'error': str(e)}), 500
     
-@manga_bp.route('/<int:id>', methods=['GET'])
+@manga_bp.route('/<string:id>', methods=['GET'])
 def get_manga_by_id(id):
     query = select(Manga).where(Manga.id == id)
     result = db.session.execute(query).scalars().first()
@@ -59,7 +59,7 @@ def get_manga_by_id(id):
     
     return jsonify(manga_schema.dump(result)), 200
 
-@manga_bp.route('<int:id>', methods=['PUT'])
+@manga_bp.route('<string:id>', methods=['PUT'])
 def update_manga(id):
     manga = db.session.get(Manga, id)
     
@@ -74,7 +74,7 @@ def update_manga(id):
     db.session.commit()
     return manga_schema.jsonify(manga), 200
 
-@manga_bp.route('<int:id>', methods=['DELETE'])
+@manga_bp.route('<string:id>', methods=['DELETE'])
 def delete_manga(id):
     manga = db.session.get(Manga, id)
     
