@@ -37,6 +37,26 @@ def add_bookmark():
         'bookmark': bookmark_schema.dump(bookmark_data)
     }), 201
     
+@bookmarks_bp.route('/toggle/<string:manga_id>', methods=['POST'])
+@user_required
+def toggle_bookmark(manga_id):
+    existing = db.session.execute(
+        select(Bookmark).where(
+            (Bookmark.user_id == request.user_id) &
+            (Bookmark.manga_id == manga_id)
+        )
+    ).scalar_one_or_none()
+    
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+        return jsonify({'message': 'Bookmark removed'}), 200
+    else:
+        new_bookmark = Bookmark(user_id=request.user_id, manga_id=manga_id)
+        db.session.add(new_bookmark)
+        db.session.commit()
+        return jsonify({'message': 'Bookmark added'}), 201
+    
 @bookmarks_bp.route("/", methods=['GET'])
 def get_bookmars():
     try:
@@ -66,6 +86,27 @@ def get_bookmark_by_id(id):
         return jsonify({'message': 'Bookmark not found'}), 404
     
     return jsonify(bookmark_schema.dump(result)), 200
+
+@bookmarks_bp.route('/user', methods=['GET'])
+@user_required
+def get_my_bookmarks():
+    bookmarks = db.session.execute(
+        select(Bookmark).where(Bookmark.user_id == request.user_id)
+    ).scalars().all()
+    
+    return jsonify({'bookmarks': bookmarks_schema.dump(bookmarks)}), 200
+
+@bookmarks_bp.route('/manga/<string:manga_id>', methods=['GET'])
+@user_required
+def get_bookmarks_for_manga(manga_id):
+    bookmarks = db.session.execute(
+        select(Bookmark).where(
+            (Bookmark.manga_id == manga_id) &
+            (Bookmark.user_id == request.user_id)
+        )
+    ).scalars().all()
+    
+    return jsonify({'bookmarks': bookmarks_schema.dump(bookmarks)}), 200
 
 @bookmarks_bp.route('/<int:id>', methods=['PUT'])
 def update_bookmark(id):

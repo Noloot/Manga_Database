@@ -44,7 +44,7 @@ class Bookmark(Base):
     manga_id: Mapped[str] = mapped_column(db.ForeignKey('manga.id'), nullable=False)
     favorited: Mapped[bool] = mapped_column(db.Boolean, default=False)
     added_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    last_read_chapter: Mapped[str] = mapped_column(db.String(500))
+    last_read_chapter: Mapped[str] = mapped_column(db.String(500), default="1", nullable=False)
     last_updated: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
     
     user = relationship("User", backref="bookmarks")
