@@ -58,7 +58,7 @@ def toggle_bookmark(manga_id):
         return jsonify({'message': 'Bookmark added'}), 201
     
 @bookmarks_bp.route("/", methods=['GET'])
-def get_bookmars():
+def get_bookmarks():
     try:
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 10))
@@ -78,14 +78,17 @@ def get_bookmars():
         return jsonify({'message': 'Error fetching Bookmarks', 'error': str(e)}), 500
     
 @bookmarks_bp.route('/<int:id>', methods=['GET'])
+@user_required
 def get_bookmark_by_id(id):
-    query = select(Bookmark).where(Bookmark.id == id)
-    result = db.session.execute(query).scalars().first()
+    bookmark = db.session.get(Bookmark, id)
     
-    if result is None:
+    if not bookmark:
         return jsonify({'message': 'Bookmark not found'}), 404
     
-    return jsonify(bookmark_schema.dump(result)), 200
+    if bookmark.user_id != request.user_id:
+        return jsonify({'message': 'Forbidden: Can not get the bookmarks of another user'}), 403
+    
+    return jsonify(bookmark_schema.dump(bookmark)), 200
 
 @bookmarks_bp.route('/user', methods=['GET'])
 @user_required
@@ -109,11 +112,15 @@ def get_bookmarks_for_manga(manga_id):
     return jsonify({'bookmarks': bookmarks_schema.dump(bookmarks)}), 200
 
 @bookmarks_bp.route('/<int:id>', methods=['PUT'])
+@user_required
 def update_bookmark(id):
     bookmark = db.session.get(Bookmark, id)
     
     if not bookmark:
         return jsonify({'message': 'Bookmark not found'}), 404
+    
+    if bookmark.user_id != request.user_id:
+        return jsonify({'message': 'Forbidden: You do not own this bookmark'}), 403
     
     try:
         bookmark = bookmark_schema.load(request.json, instance=bookmark, partial=True)
@@ -124,11 +131,15 @@ def update_bookmark(id):
     return bookmark_schema.jsonify(bookmark), 200
 
 @bookmarks_bp.route('/<int:id>', methods=['DELETE'])
+@user_required
 def delete_bookmark(id):
     bookmark = db.session.get(Bookmark, id)
     
     if not bookmark:
         return jsonify({'message': 'Bookmark not found'}), 404
+    
+    if bookmark.user_id != request.user_id:
+        return jsonify({'message': 'Forbidden: You can not delete another users bookmarks'}), 403
     
     db.session.delete(bookmark)
     db.session.commit()
