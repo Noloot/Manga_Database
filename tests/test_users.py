@@ -104,24 +104,36 @@ class UserRouteTests(unittest.TestCase):
         self.assertIn("Access denied", response.get_data(as_text=True))
     
     def test_get_all_users(self):
-        response = self.client.get('/users/')
+        response = self.client.get(
+            '/users/',
+            headers={'Authorization': f"Bearer {self.admin_token}"}
+        )
         self.assertEqual(response.status_code, 200)
         users = response.json.get('users')
         self.assertIsInstance(users, list)
         self.assertGreaterEqual(len(users), 1)
         
     def test_get_user_by_id(self):
-        response = self.client.get(f'/users/{self.user_id}')
+        response = self.client.get(
+            f'/users/{self.user_id}',
+            headers={'Authorization': f"Bearer {self.user_token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['email'], self.user_email)
         
     def test_get_user_by_invalid_id(self):
-        response = self.client.get('/users/9999')
-        self.assertEqual(response.status_code, 404)
-        self.assertIn("User not found", response.get_data(as_text=True))
+        response = self.client.get(
+            '/users/9999',
+            headers={'Authorization': f"Bearer {self.user_token}"}
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Forbidden", response.get_data(as_text=True))
         
     def test_get_users_with_pagination(self):
-        response = self.client.get('/users/?page=1&per_page=2')
+        response = self.client.get(
+            '/users/?page=1&per_page=2',
+            headers={'Authorization': f"Bearer {self.admin_token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIn('users', response.json)
         
@@ -132,13 +144,20 @@ class UserRouteTests(unittest.TestCase):
             "password": "UpdatedUser123"
         }
         
-        response = self.client.put(f'/users/{self.user_id}', json=update_payload)
+        response = self.client.put(
+            f'/users/{self.user_id}', 
+            json=update_payload,
+            headers={'Authorization': f"Bearer {self.user_token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['username'], 'UpdatedJohn')
         self.assertEqual(response.json['email'], 'updated@email.com')
         
     def test_delete_user_by_id(self):
-        response = self.client.delete(f'/users/{self.user_id}')
+        response = self.client.delete(
+            f'/users/{self.user_id}',
+            headers={'Authorization': f"Bearer {self.admin_token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json)
         

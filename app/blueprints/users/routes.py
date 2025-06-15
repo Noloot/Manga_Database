@@ -86,6 +86,7 @@ def create_user():
     return jsonify({'message': 'New user added successfully!', 'user': user_schema.dump(user_data)}), 201
 
 @users_bp.route("/", methods=['GET'])
+@admin_required
 def get_users():
     try:
         page = int(request.args.get('page', 1))
@@ -106,7 +107,11 @@ def get_users():
         return jsonify({'message': 'Error fetching Users', 'error': str(e)}), 500
     
 @users_bp.route("/<int:id>", methods=['GET'])
+@user_required
 def get_user(id):
+    if request.role != "admin" and request.user_id != id:
+        return jsonify({'message': 'Forbidden'}), 403
+    
     query = select(User).where(User.id == id)
     result = db.session.execute(query).scalars().first()
     
@@ -122,7 +127,11 @@ def get_my_profile():
     return jsonify(user_schema.dump(user)), 200
 
 @users_bp.route('/<int:id>', methods=['PUT'])
+@user_required
 def update_user(id):
+    if request.role != "admin" and request.user_id != id:
+        return jsonify({'message': 'Forbidden'}), 403
+    
     user = db.session.get(User, id)
     
     if not user:
@@ -131,7 +140,7 @@ def update_user(id):
     try:
         user = user_schema.load(request.json, instance=user)
     except ValidationError as e:
-        return jsonify({e.messages}), 400
+        return jsonify({'errors': e.messages}), 400
     
     db.session.commit()
     return user_schema.jsonify(user), 200
@@ -171,11 +180,12 @@ def change_user_role(id):
     return jsonify({'message': f"User role updated to {new_role}"}), 200
 
 @users_bp.route('/<int:id>', methods=['DELETE'])
+@admin_required
 def delete_user(id):
     user = db.session.get(User, id)
     
     if not user:
-        return jsonify({'message': 'Invalid user id'}), 400
+        return jsonify({'message': 'Invalid user id'}), 404
     
     db.session.delete(user)
     db.session.commit()
