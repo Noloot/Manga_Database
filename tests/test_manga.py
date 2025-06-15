@@ -1,7 +1,9 @@
 import unittest
 from app import create_app
-from app.models import db, Manga
+from app.models import db, Manga, User
 import json
+from werkzeug.security import generate_password_hash
+from app.utils.util import encode_token
 from datetime import date
 
 class MangaRouteTests(unittest.TestCase):
@@ -14,6 +16,17 @@ class MangaRouteTests(unittest.TestCase):
             db.drop_all()
             db.create_all()
             db.session.commit()
+            
+            self.admin_user = User(
+                username='TestAdmin',
+                email='admin@email.com',
+                password=generate_password_hash("admin123"),
+                role='admin'
+            )
+            db.session.add(self.admin_user)
+            db.session.commit()
+            self.admin_user_id = self.admin_user.id
+            self.token = encode_token(str(self.admin_user_id), role='admin')
             
             self.manga = Manga(
                 id=1,
@@ -53,9 +66,60 @@ class MangaRouteTests(unittest.TestCase):
             "description": "Description Test"
         }
         
-        response = self.client.post("/manga/", json=payload)
+        response = self.client.post(
+            "/manga/", 
+            json=payload,
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 201)
         self.assertIn("New manga added successfully", response.get_data(as_text=True))
+        
+    def test_create_manga_forbidden_for_user(self):
+        with self.app.app_context():
+            user = User(
+                username='TestUser',
+                email='user@email.com',
+                password=generate_password_hash("user123"),
+                role='user'
+            )
+            db.session.add(user)
+            db.session.commit()
+            user_token = encode_token(str(user.id), role='user')
+            
+        payload = {
+            "title": "Forbidden Test",
+            "author": "Author Test",
+            "status": "Ongoing",
+            "cover_url": "https://example.com/test-cover.jpg",
+            "genre": "Action",
+            "book_type": "Manga",
+            "published_date": "2025-06-05",
+            "rating": 4.15,
+            "views": 100,
+            "description": "Description Test"
+        }
+        response = self.client.post(
+            "/manga/",
+            json=payload,
+            headers={'Authorization': f"Bearer {user_token}"}
+        )
+        self.assertEqual(response.status_code, 403)
+        
+    def test_create_manga_no_token(self):
+        payload = {
+            "title": "No Token Test",
+            "author": "Author Test",
+            "status": "Ongoing",
+            "cover_url": "https://example.com/test-cover.jpg",
+            "genre": "Action",
+            "book_type": "Manga",
+            "published_date": "2025-06-05",
+            "rating": 4.15,
+            "views": 100,
+            "description": "Description Test"
+        }
+        response = self.client.post("/manga/", json=payload)
+        self.assertEqual(response.status_code, 401)
         
     def test_create_manga_duplicate(self):
         payload = {
@@ -71,7 +135,11 @@ class MangaRouteTests(unittest.TestCase):
             "description": "Description Test"
         }
         
-        response = self.client.post("/manga/", json=payload)
+        response = self.client.post(
+            "/manga/", 
+            json=payload,
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 409)
         self.assertIn("Manga already exists", response.get_data(as_text=True))
         
@@ -101,12 +169,58 @@ class MangaRouteTests(unittest.TestCase):
             "description": "Description Test"
         }
         
-        response = self.client.put('/manga/1', json=update_payload)
+        response = self.client.put(
+            '/manga/1', 
+            json=update_payload,
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['title'], 'Title Test')
         self.assertEqual(response.json['author'], 'Author Test')
         
+    def test_update_manga_forbidden(self):
+        with self.app.app_context():
+            user = User(
+                username='TestUser',
+                email='user@email.com',
+                password=generate_password_hash("user123"),
+                role='user'
+            )
+            db.session.add(user)
+            db.session.commit()
+            user_token = encode_token(str(user.id), role='user')
+        response = self.client.put(
+            f"/manga/{self.manga_id}",
+            headers={'Authorization': f"Bearer {user_token}"}
+        )
+        self.assertEqual(response.status_code, 403)
+        
     def test_delete_manga(self):
-        response = self.client.delete(f'/manga/{self.manga_id}')
+        response = self.client.delete(
+            f'/manga/{self.manga_id}',
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json)
+    
+    def test_delete_manga_forbidden(self):
+        with self.app.app_context():
+            user = User(
+                username='TestUser',
+                email='user@email.com',
+                password=generate_password_hash("user123"),
+                role='user'
+            )
+            db.session.add(user)
+            db.session.commit()
+            user_token = encode_token(str(user.id), role='user')
+            
+        response = self.client.delete(
+            f"/manga/{self.manga_id}",
+            headers={'Authorization': f"Bearer {user_token}"}
+        )
+        self.assertEqual(response.status_code, 403)
+    
+    def test_delete_manga_no_token(self):
+        response = self.client.delete(f"/manga/{self.manga_id}")
+        self.assertEqual(response.status_code, 401)

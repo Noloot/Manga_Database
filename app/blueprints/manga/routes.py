@@ -4,8 +4,10 @@ from marshmallow import ValidationError
 from sqlalchemy import select
 from app.models import Manga, db
 from . import manga_bp
+from app.utils.util import user_required, admin_required
 
 @manga_bp.route("/", methods=['POST'])
+@admin_required
 def create_manga():
     try:
         manga_data = manga_schema.load(request.json)
@@ -59,12 +61,13 @@ def get_manga_by_id(id):
     
     return jsonify(manga_schema.dump(result)), 200
 
-@manga_bp.route('<string:id>', methods=['PUT'])
+@manga_bp.route('/<string:id>', methods=['PUT'])
+@admin_required
 def update_manga(id):
     manga = db.session.get(Manga, id)
     
     if not manga:
-        return jsonify({'messaga': 'Manga not found'}), 404
+        return jsonify({'message': 'Manga not found'}), 404
     
     try:
         manga = manga_schema.load(request.json, instance=manga, partial=True)
@@ -74,7 +77,8 @@ def update_manga(id):
     db.session.commit()
     return manga_schema.jsonify(manga), 200
 
-@manga_bp.route('<string:id>', methods=['DELETE'])
+@manga_bp.route('/<string:id>', methods=['DELETE'])
+@admin_required
 def delete_manga(id):
     manga = db.session.get(Manga, id)
     
