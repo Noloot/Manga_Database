@@ -4,6 +4,7 @@ from app.models import db, Chapter, Manga, User
 import json
 from datetime import datetime
 import uuid
+from app.utils.util import encode_token
 
 class ChapterRouteTests(unittest.TestCase):
     
@@ -19,6 +20,7 @@ class ChapterRouteTests(unittest.TestCase):
             db.session.add(self.user)
             db.session.commit()
             self.user_id = self.user.id
+            self.token = encode_token(str(self.user_id), role='admin')
             
             self.manga = Manga(
                 id=1,
@@ -60,9 +62,47 @@ class ChapterRouteTests(unittest.TestCase):
             "language": "en"
         }
         
-        response = self.client.post("/chapter/", json=payload)
+        response = self.client.post(
+            "/chapter/", 
+            json=payload,
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 201)
         self.assertIn("New chapter added successfully", response.get_data(as_text=True))
+    
+    def test_create_chapter_with_user_token_forbidden(self):
+        user_token = encode_token(str(self.user_id), role='user')
+        
+        payload = {
+            "manga_id": 1,
+            "chapter_number": "Chapter 11",
+            "title": "Forbidden Chapter",
+            "release_date": "2025-05-05",
+            "language": "en"
+        }
+        response = self.client.post(
+            "/chapter/",
+            json=payload,
+            headers={'Authorization': f"Bearer {user_token}"}
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Unauthorized", response.get_data(as_text=True))
+        
+    def test_create_chapter_without_token(self):
+        payload = {
+            "manga_id": 1,
+            "chapter_number": "Chapter 12",
+            "title": "No Token Chapter",
+            "release_date": "2025-05-05",
+            "language": "en"
+        }
+        
+        response = self.client.post(
+            "/chapter/",
+            json=payload
+        )
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("Token is missing", response.get_data(as_text=True))
         
     def test_get_all_chapters(self):
         response = self.client.get('/chapter/')
@@ -133,11 +173,18 @@ class ChapterRouteTests(unittest.TestCase):
             "manga_id": 1
         }
         
-        response = self.client.put(f'/chapter/{self.chapter_id}', json=update_payload)
+        response = self.client.put(
+            f'/chapter/{self.chapter_id}', 
+            json=update_payload,
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['title'], 'Title Test')
         
     def test_delete_chapter(self):
-        response = self.client.delete(f'/chapter/{self.chapter_id}')
+        response = self.client.delete(
+            f'/chapter/{self.chapter_id}',
+            headers={'Authorization': f"Bearer {self.token}"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIn('message', response.json)

@@ -20,38 +20,6 @@ def encode_token(user_id, role):
     token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
     return token
 
-def admin_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        
-        if 'Authorization' in request.headers:
-            parts = request.headers['Authorization'].split(" ")
-            if len(parts) == 2 and parts[0] == "Bearer":
-                token = parts[1]
-            
-        if not token:
-            return jsonify({'message': 'Token is missing'}), 401
-        
-        try:
-            data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-            user_id = data['sub']
-            role = data['role']
-            
-            if role != 'admin':
-                return jsonify({'message': 'Unauthorized: Admin role required'}), 401
-            
-            request.admin_id = user_id
-            
-        except ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired!'}), 401
-        except JWTError:
-            return jsonify({'message': 'Invalid Token'}), 401
-        
-        return f(*args, **kwargs)
-    
-    return decorated
-
 def user_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -68,13 +36,23 @@ def user_required(f):
         try:
             data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
             request.user_id = int(data['sub'])
-            request.user_role = data['role']
+            request.role = data['role']
             
         except ExpiredSignatureError:
             return jsonify({'message': 'Token has expired!'}), 401
         except JWTError:
             return jsonify({'message': 'Invalid token'}), 401
         
+        return f(*args, **kwargs)
+    
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    @user_required
+    def decorated(*args, **kwargs):
+        if request.role != 'admin':
+            return jsonify({'message': 'Unauthorized: Admin role required'}), 403
         return f(*args, **kwargs)
     
     return decorated

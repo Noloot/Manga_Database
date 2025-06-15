@@ -4,10 +4,11 @@ from marshmallow import ValidationError
 from sqlalchemy import select, and_
 from app.models import Chapter, db, ReadingHistory
 from . import chapters_bp
-from app.utils.util import user_required
+from app.utils.util import user_required, admin_required
 from datetime import datetime, timezone
 
 @chapters_bp.route('/', methods=['POST'])
+@admin_required
 def create_chapter():
     try:
         chapter_data = chapter_schema.load(request.json)
@@ -127,21 +128,23 @@ def get_next_chapter(id):
     return jsonify(chapter_schema.dump(next_chapter)), 200
 
 @chapters_bp.route('/<string:id>', methods=['PUT'])
+@admin_required
 def update_chapter_by_id(id):
     chapter = db.session.get(Chapter, id)
     
     if not chapter:
-        return jsonify({'message': 'Chpater not found'}), 404
+        return jsonify({'message': 'Chapter not found'}), 404
     
     try:
         chapter = chapter_schema.load(request.json, instance=chapter)
     except ValidationError as e:
-        return jsonify({e.messages}), 400
+        return jsonify({'message': 'Validation error', 'errors': e.messages}), 400
     
     db.session.commit()
     return jsonify(chapter_schema.dump(chapter)), 200
 
 @chapters_bp.route('/<string:id>', methods=['DELETE'])
+@admin_required
 def delete_chapter(id):
     chapter = db.session.get(Chapter, id)
     
