@@ -4,8 +4,7 @@ from marshmallow import ValidationError
 from sqlalchemy import select, and_
 from app.models import Bookmark, db
 from . import bookmarks_bp
-from werkzeug.security import check_password_hash
-from app.utils.util import encode_token, user_required
+from app.utils.util import user_required
 
 @bookmarks_bp.route('/', methods=['POST'])
 @user_required
