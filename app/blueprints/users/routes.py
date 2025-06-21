@@ -179,6 +179,23 @@ def change_user_role(id):
     db.session.commit()
     return jsonify({'message': f"User role updated to {new_role}"}), 200
 
+@users_bp.route("/promote/<int:user_id>", methods=['PUT'])
+@admin_required
+def promote_user(user_id):
+    user = db.session.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    user.role = 'admin'
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Database error', 'error': str(e)}), 500
+    
+    return jsonify({'message': 'User promoted to admin successfully'}), 200
+
 @users_bp.route('/<int:id>', methods=['DELETE'])
 @admin_required
 def delete_user(id):

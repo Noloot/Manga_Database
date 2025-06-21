@@ -1,0 +1,323 @@
+swagger: "2.0"
+info:
+  title: "Manga Database API"
+  description: "A Database that stores and displays information on manga, webtoons, manhwa, etc"
+  version: "1.0.0"
+host: "127.0.0.1:5000"
+schemes:
+  - "http"
+consumes:
+  - "application/json"
+
+paths:
+  /login:
+    post:
+      summary: User Login
+      description: Authenticates a user and returns an authentication token.
+      tags:
+        - Users
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/LoginCredentials"
+      responses:
+        200:
+          description: Successful login
+          schema:
+            $ref: "#/definitions/LoginResponse"
+        400:
+          description: Validation Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        401:
+          description: Invalid credentials
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /login/admin:
+    post:
+      summary: Admin Login
+      description: Authenticates an admin user and returns an authentication token.
+      tags:
+        - Users
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/LoginCredentials"
+      responses:
+        200:
+          description: Successful admin login
+          schema:
+            $ref: "#/definitions/AdminLoginResponse"
+        400:
+          description: Validation Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        401:
+          description: Invalid credentials
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        403:
+          description: Access Denied (Not Admin)
+          schema:
+            $ref: "#/definitions/ForbiddenResponse"
+
+  /users:
+    post:
+      summary: Create New User
+      description: Register a new user account.
+      tags:
+        - Users
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/UserCreate"
+      responses:
+        201:
+          description: User successfully created
+          schema:
+            $ref: "#/definitions/UserCreateResponse"
+        400:
+          description: Validation Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        409:
+          description: Username or email already exists
+          schema:
+            $ref: "#/definitions/ConflictResponse"
+        500:
+          description: Server/database error
+          schema:
+            $ref: "#/definitions/ServerErrorResponse"
+
+    get:
+      summary: Get list of all users (paginated)
+      description: Returns paginated list of users (admin access required)
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          type: integer
+          default: 1
+          example: 1
+          description: Page number
+        - name: per_page
+          in: query
+          required: false
+          type: integer
+          default: 10
+          example: 10
+          description: Number of users per page
+      responses:
+        200:
+          description: List of users
+          schema:
+            type: object
+            properties:
+              page:
+                type: integer
+                example: 1
+              per_page:
+                type: integer
+                example: 10
+              total_users:
+                type: integer
+                example: 50
+              users:
+                type: array
+                items:
+                  $ref: "#/definitions/UserResponse"
+        500:
+          description: Server/database error
+          schema:
+            $ref: "#/definitions/ServerErrorResponse"
+
+  /users/promote/{user_id}:
+    put:
+      summary: Promote User to Admin
+      description: Promote an existing user to admin (admin access required).
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: integer
+          example: 1
+      responses:
+        200:
+          description: User successfully promoted
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: User promoted to admin successfully
+        404:
+          description: User not found
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: User not found
+        500:
+          description: Database error
+          schema:
+            $ref: "#/definitions/ServerErrorResponse"
+
+securityDefinitions:
+  bearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: |
+      Enter your JWT token in this format: **Bearer &lt;token&gt;**
+
+definitions:
+  LoginCredentials:
+    type: object
+    required:
+      - username
+      - password
+    properties:
+      username:
+        type: string
+        example: johndoe
+      password:
+        type: string
+        example: your_password_here
+
+  LoginResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: Successfully Logged In
+      auth_token:
+        type: string
+        example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+
+  ErrorResponse:
+    type: object
+    properties:
+      message:
+        type: string
+        example: Validation error
+
+  AdminLoginResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: Admin Logged in
+      auth_token:
+        type: string
+        description: JWT token to be used as Bearer token for authenticated requests.
+        example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+
+  ForbiddenResponse:
+    type: object
+    properties:
+      message:
+        type: string
+        example: "Access denied: Not an admin"
+
+  UserCreate:
+    type: object
+    required:
+      - username
+      - email
+      - password
+    properties:
+      username:
+        type: string
+        example: newuser123
+      email:
+        type: string
+        format: email
+        example: newuser@example.com
+      password:
+        type: string
+        format: password
+        example: strongPassword123
+      role:
+        type: string
+        enum: [user, admin]
+        example: user
+
+  UserCreateResponse:
+    type: object
+    properties:
+      message:
+        type: string
+        example: New user added successfully!
+      user:
+        type: object
+        properties:
+          id:
+            type: integer
+            example: 1
+          username:
+            type: string
+            example: newuser123
+          email:
+            type: string
+            example: newuser@example.com
+          role:
+            type: string
+            example: user
+
+  UserResponse:
+    type: object
+    properties:
+      id:
+        type: integer
+        example: 1
+      username:
+        type: string
+        example: newuser123
+      email:
+        type: string
+        example: newuser@example.com
+      role:
+        type: string
+        example: user
+
+  ConflictResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: fail
+      message:
+        type: string
+        example: Username or email already exists
+
+  ServerErrorResponse:
+    type: object
+    properties:
+      message:
+        type: string
+        example: Database error
+      error:
+        type: string
+        example: Integrity Error duplicate key value violates unique constraint
